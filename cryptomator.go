@@ -130,6 +130,51 @@ func (vault *CryptomatorVault) hashSHA1(payload []byte) []byte {
 	return vault.sha1Hasher.Sum(nil)
 }
 
+// EncryptFilename returns the decrypted filenames
+func (vault *CryptomatorVault) EncryptFilename(plainFilename string, parentDirID string) (string, error) {
+	var associatedData = [][]byte{[]byte(parentDirID)}
+	encryptedFilename, err := siv.Encrypt(nil, vault.hmacAndMasterKey, []byte(plainFilename), associatedData)
+	if err != nil {
+		return "", err
+	}
+
+	// encode it into a string
+	return base32.StdEncoding.EncodeToString(encryptedFilename), nil
+}
+
+// EncryptDirectoryName returns the decrypted filenames
+func (vault *CryptomatorVault) EncryptDirectoryName(plainFilename string, parentDirID string) (string, error) {
+	encryptedFilename, err := vault.EncryptFilename(plainFilename, parentDirID)
+	if err != nil {
+		return "", err
+	}
+
+	return "0" + encryptedFilename, nil
+}
+
+// DecryptFilename returns the decrypted filenames
+func (vault *CryptomatorVault) DecryptFilename(encryptedFilename string, parentDirID string) (string, error) {
+	if encryptedFilename[:1] == "0" {
+		encryptedFilename = encryptedFilename[1:]
+	}
+
+	var associatedData = [][]byte{[]byte(parentDirID)}
+
+	filenameBytes, err := base32.StdEncoding.DecodeString(encryptedFilename)
+	if err != nil {
+		return "", err
+	}
+
+	filenameBytes, err = siv.Decrypt(vault.hmacAndMasterKey, filenameBytes, associatedData)
+	if err != nil {
+		return "", err
+	}
+
+	// base32(aesSiv(cleartextName, parentDirId, encryptionMasterKey, macMasterKey))
+
+	return string(filenameBytes), nil
+}
+
 // OpenCrytomatorVault opens an existing vault in the given directory
 func OpenCrytomatorVault(vaultDirectory string, password []byte) (*CryptomatorVault, error) {
 	masterKeyFilename := path.Join(vaultDirectory, CryptomatorMasterkey)
