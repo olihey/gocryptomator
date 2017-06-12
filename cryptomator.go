@@ -1,14 +1,17 @@
 package gocryptomator
 
 import (
+	"crypto/cipher"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path"
 
+	"crypto/aes"
+
 	"github.com/Sirupsen/logrus"
+	"golang.org/x/crypto/scrypt"
 )
 
 const (
@@ -30,38 +33,41 @@ type CryptomatorVault struct {
 	VersionMacString       string `json:"versionMac"`
 	VersionMac             []byte
 	vaultDirectory         string
+	kek                    []byte
+	cipher                 cipher.Block
 }
 
 // ConvertToBytes converts all strings to the corresponding bytes values
-func (mc *CryptomatorVault) ConvertToBytes() {
+func (mc *CryptomatorVault) ConvertToBytes() error {
 	var err error
 	mc.ScryptSalt, err = base64.StdEncoding.DecodeString(mc.ScryptSaltString)
 	if err != nil {
-		logrus.Errorf("Error while decoding ScryptSalt string %s, err: %s", mc.ScryptSaltString, err)
+		return fmt.Errorf("Error while decoding ScryptSalt string %s, err: %s", mc.ScryptSaltString, err)
 	}
 	mc.PrimaryMasterKey, err = base64.StdEncoding.DecodeString(mc.PrimaryMasterKeyString)
 	if err != nil {
-		logrus.Errorf("Error while decoding PrimaryMasterKey string %s, err: %s", mc.PrimaryMasterKeyString, err)
+		return fmt.Errorf("Error while decoding PrimaryMasterKey string %s, err: %s", mc.PrimaryMasterKeyString, err)
 	}
 	mc.HmacMasterKey, err = base64.StdEncoding.DecodeString(mc.HmacMasterKeyString)
 	if err != nil {
-		logrus.Errorf("Error while decoding HmacMasterKey string %s, err: %s", mc.HmacMasterKeyString, err)
+		return fmt.Errorf("Error while decoding HmacMasterKey string %s, err: %s", mc.HmacMasterKeyString, err)
 	}
 	mc.VersionMac, err = base64.StdEncoding.DecodeString(mc.VersionMacString)
 	if err != nil {
-		logrus.Errorf("Error while decoding VersionMac string %s, err: %s", mc.VersionMacString, err)
+		return fmt.Errorf("Error while decoding VersionMac string %s, err: %s", mc.VersionMacString, err)
 	}
+
+	return nil
 }
 
 // OpenCrytomatorVault opens an existing vault in the given directory
-func OpenCrytomatorVault(vaultDirectory string) (*CryptomatorVault, error) {
+func OpenCrytomatorVault(vaultDirectory string, password []byte) (*CryptomatorVault, error) {
 	masterKeyFilename := path.Join(vaultDirectory, CryptomatorMasterkey)
-	fmt.Printf("Trying to open %s", masterKeyFilename)
+	logrus.Debugf("Trying to open %s\n", masterKeyFilename)
 
 	raw, err := ioutil.ReadFile(masterKeyFilename)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
 	var vault CryptomatorVault
@@ -72,8 +78,32 @@ func OpenCrytomatorVault(vaultDirectory string) (*CryptomatorVault, error) {
 	}
 
 	vault.vaultDirectory = vaultDirectory
+	err = vault.ConvertToBytes()
+	if err != nil {
+		return nil, err
+	}
 
-	fmt.Printf("MasterKeyData: %v", vault)
+	vault.kek, err = scrypt.Key(password, vault.ScryptSalt, vault.ScryptCostParam, vault.ScryptBlockSize, 1, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	vault.cipher, err = aes.NewCipher(vault.kek)
+	if err != nil {
+		return nil, err
+	}
+
+	vault.HmacMasterKey, err = KeyUnwrap(vault.cipher, vault.HmacMasterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	vault.PrimaryMasterKey, err = KeyUnwrap(vault.cipher, vault.PrimaryMasterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Debugf("MasterKeyData: %v\n", vault)
 
 	return &vault, nil
 }

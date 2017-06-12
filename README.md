@@ -1,2 +1,2 @@
-# go-cryptomator
+# gocryptomator
 Cryptomator access from golang
