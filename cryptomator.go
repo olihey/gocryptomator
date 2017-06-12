@@ -2,6 +2,7 @@ package gocryptomator
 
 import (
 	"crypto/cipher"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,10 @@ import (
 
 	"crypto/aes"
 
+	"crypto/sha1"
+
 	"github.com/Sirupsen/logrus"
+	"github.com/jacobsa/crypto/siv"
 	"golang.org/x/crypto/scrypt"
 )
 
@@ -104,6 +108,25 @@ func OpenCrytomatorVault(vaultDirectory string, password []byte) (*CryptomatorVa
 	}
 
 	logrus.Debugf("MasterKeyData: %v\n", vault)
+
+	var asData [][]byte
+	asData = append(asData, vault.HmacMasterKey)
+	// dirIdHash := base32(sha1(aesSiv(dirId, null, encryptionMasterKey, macMasterKey)))
+	rootDirNameData, err := siv.Encrypt(nil, append(vault.HmacMasterKey[:], vault.PrimaryMasterKey[:]...), []byte(""), nil)
+	fmt.Println(rootDirNameData)
+	if err != nil {
+		return nil, err
+	}
+	h := sha1.New()
+	h.Write(rootDirNameData)
+	sha1Data := h.Sum(nil)
+	fmt.Println(sha1Data)
+	rootDirName := base32.StdEncoding.EncodeToString(sha1Data)
+	fmt.Printf("Root dirname 1: %s\n", rootDirName)
+	fmt.Println("Root dirname 2: ZFHPJQGVD3AH3WQNTOFRRRWVMYYNRPAX")
+
+	// dirIdHash := base32(sha1(aesSiv(dirId, null, encryptionMasterKey, macMasterKey)))
+	// dirPath := vaultRoot + '/d/' + substr(dirIdHash, 0, 2) + '/' + substr(dirIdHash, 2, 30)
 
 	return &vault, nil
 }
