@@ -1,4 +1,4 @@
-package main
+package gocryptomator
 
 import (
 	"encoding/base64"
@@ -76,11 +76,4 @@ func OpenCrytomatorVault(vaultDirectory string) (*CryptomatorVault, error) {
 	fmt.Printf("MasterKeyData: %v", vault)
 
 	return &vault, nil
-}
-
-func main() {
-	_, err := OpenCrytomatorVault("C:\\Users\\olihey\\Documents\\vault")
-	if err != nil {
-		logrus.Errorf("Failed to open vault: %s", err)
-	}
 }
