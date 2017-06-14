@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash"
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 
@@ -173,6 +174,33 @@ func (vault *CryptomatorVault) DecryptFilename(encryptedFilename string, parentD
 	// base32(aesSiv(cleartextName, parentDirId, encryptionMasterKey, macMasterKey))
 
 	return string(filenameBytes), nil
+}
+
+// ReadDir returns the decrypted filenames
+func (vault *CryptomatorVault) ReadDir(path string) ([]os.FileInfo, error) {
+	// pathComponents := strings.Split(path, "/")
+	// for
+	return nil, fmt.Errorf("Not implemented")
+}
+
+// List returns a list of FileInfo for the given UUID
+func (vault *CryptomatorVault) List(pathUUID string) ([]*CryptomatorNode, error) {
+	encryptedPath, err := vault.EncryptedPathFor(pathUUID, true)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(encryptedPath)
+
+	dirItems, err := ioutil.ReadDir(encryptedPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var nodesList []*CryptomatorNode
+	for _, dirItem := range dirItems {
+		nodesList = append(nodesList, CreateNodeFromFileInfo(dirItem, vault, pathUUID))
+	}
+	return nodesList, nil
 }
 
 // OpenCrytomatorVault opens an existing vault in the given directory
