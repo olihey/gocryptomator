@@ -189,7 +189,6 @@ func (vault *CryptomatorVault) List(pathUUID string) ([]*CryptomatorNode, error)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(encryptedPath)
 
 	dirItems, err := ioutil.ReadDir(encryptedPath)
 	if err != nil {
