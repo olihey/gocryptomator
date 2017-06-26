@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/jacobsa/crypto/siv"
@@ -200,6 +201,30 @@ func (vault *CryptomatorVault) List(pathUUID string) ([]*CryptomatorNode, error)
 		nodesList = append(nodesList, CreateNodeFromFileInfo(dirItem, vault, pathUUID))
 	}
 	return nodesList, nil
+}
+
+func (vault *CryptomatorVault) walkRec(parentDirID string, depth int) error {
+	rootItems, err := vault.List(parentDirID)
+	if err != nil {
+		return err
+	}
+	for _, rootItem := range rootItems {
+		if rootItem.IsDir() {
+			childParentDirID, err := rootItem.DirUUID()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s%s:\n", strings.Repeat("  ", depth), rootItem.Name())
+			vault.walkRec(childParentDirID, depth+1)
+		} else {
+			fmt.Printf("%s%s with %d bytes\n", strings.Repeat("  ", depth), rootItem.Name(), rootItem.Size())
+		}
+	}
+	return nil
+}
+
+func (vault *CryptomatorVault) Walk() error {
+	return vault.walkRec("", 0)
 }
 
 // OpenCrytomatorVault opens an existing vault in the given directory
