@@ -12,6 +12,13 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
+const (
+	CRYPTOMATOR_HEADER_SIZE       = 88
+	CRYPTOMATOR_BLOCK_HEADER_SIZE = 48
+	CRYPTOMATOR_BLOCK_SIZE        = 32 * 1024
+	CRYPTOMATOR_FULL_BLOCK_SIZE   = CRYPTOMATOR_BLOCK_HEADER_SIZE + CRYPTOMATOR_BLOCK_SIZE
+)
+
 // CryptomatorNode handles the os.FIleInfo interface
 type CryptomatorNode struct {
 	fileInfo    os.FileInfo
@@ -35,8 +42,30 @@ func (n *CryptomatorNode) Size() int64 {
 	if n.IsDir() {
 		return 0
 	}
-	return n.fileInfo.Size()
+
+	// get the size of the fuile
+	encryptedSize := n.fileInfo.Size()
+
+	// deduct the header
+	decryptedSize := encryptedSize - CRYPTOMATOR_HEADER_SIZE
+
+	// Get the size of the last block
+	lastBlockSize := decryptedSize % CRYPTOMATOR_FULL_BLOCK_SIZE
+
+	// get the number of blocks the file is split into
+	var blockCount int64
+	if lastBlockSize == 0 {
+		blockCount = decryptedSize / CRYPTOMATOR_FULL_BLOCK_SIZE
+	} else {
+		// if the last block is not FULL add it to the count
+		blockCount = 1 + (decryptedSize / CRYPTOMATOR_FULL_BLOCK_SIZE)
+	}
+	// deduct the block headers for all blocks
+	decryptedSize -= blockCount * CRYPTOMATOR_BLOCK_HEADER_SIZE
+
+	return decryptedSize
 }
+
 func (n *CryptomatorNode) Mode() os.FileMode {
 	return n.fileInfo.Mode()
 }
